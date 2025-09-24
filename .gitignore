@@ -106,5 +106,4 @@ ENV/
 # IDE settings
 .vscode/
 
-pymmcore_widgets/_version.py
-src/pymmcore_widgets/_version.py
+CoreLogs/
