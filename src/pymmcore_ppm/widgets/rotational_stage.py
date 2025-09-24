@@ -3,10 +3,11 @@
 In this example all the devices of type 'Stage' and 'XYStage' that are loaded
 in micromanager are displayed with a 'StageWidget'.
 """
+
 from __future__ import annotations
 
 from math import cos, pi, sin
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import cmap
 from pyconify import svg_path
@@ -30,6 +31,9 @@ from superqt.iconify import QIconifyIcon
 
 if TYPE_CHECKING:
     from pymmcore_plus.core import StageDevice
+    from qtpy.QtCore import QTimerEvent
+    from qtpy.QtGui import QPaintEvent
+    from qtpy.QtWidgets import QWheelEvent
 
 
 # Forked from: https://github.com/pymmcore-plus/pymmcore-widgets/blob/2b33e43aa4d49b0861b52b383ab1cd0123ecc61a/src/pymmcore_widgets/control/_stage_widget.py#L51
@@ -41,8 +45,8 @@ class _MoveStageButton(QPushButton):
         xmag: int,
         ymag: int,
         parent: QWidget | None = None,
-        color: cmap.Color | None = None
-    ):
+        color: cmap.Color | None = None,
+    ) -> None:
         super().__init__(parent=parent)
         self.xmag = xmag
         self.ymag = ymag
@@ -65,18 +69,13 @@ class _MoveStageButton(QPushButton):
         r, g, b = self._color.rgba8[:3]
         # Normally the button will be half the intensity of the color...
         normal_path = svg_path(
-            self._glyph,
-            color=f"rgb({r // 2}, {g // 2}, {b})"
+            self._glyph, color=f"rgb({r // 2}, {g // 2}, {b})"
         ).as_posix()
         # ...but when hovering, it will be full intensity...
-        hover_path = svg_path(
-            self._glyph,
-            color=f"rgb({r}, {g}, {b})"
-        ).as_posix()
+        hover_path = svg_path(self._glyph, color=f"rgb({r}, {g}, {b})").as_posix()
         # ...and when pressed, it will be 3/4 intensity.
         press_path = svg_path(
-            self._glyph,
-            color=f"rgb({3 * r // 4}, {3 * g // 4}, {3 * b // 4})"
+            self._glyph, color=f"rgb({3 * r // 4}, {3 * g // 4}, {3 * b // 4})"
         ).as_posix()
 
         self.setStyleSheet(
@@ -95,12 +94,13 @@ class _MoveStageButton(QPushButton):
             }}
             """
         )
-        return self._color
+
 
 # End fork
 
+
 class _RotationCanvas(QGraphicsView):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setScene(QGraphicsScene(self))
         self.setRenderHint(QPainter.Antialiasing)
@@ -111,24 +111,23 @@ class _RotationCanvas(QGraphicsView):
         self.text_color = self.palette().color(self.foregroundRole())
         self.reference_angles = [0, 45, -45, 90, -90, 60.3]
 
-    def setAngle(self, angle):
+    def setAngle(self, angle: float) -> None:
         self.angle = angle
         self.viewport().update()
 
-    def setStep(self, step):
+    def setStep(self, step: float) -> None:
         self.step = step
         self.viewport().update()
 
-
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent | None) -> None:
         painter = QPainter(self.viewport())
         painter.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        cx, cy = w/2, h/2
+        cx, cy = w / 2, h / 2
         radius = min(w, h) * 0.4
 
         # Transparent circle with text-colored edge
-        painter.setBrush(QBrush(QColor(0,0,0,0)))
+        painter.setBrush(QBrush(QColor(0, 0, 0, 0)))
         pen = QPen(self.text_color)
         pen.setWidth(2)
         painter.setPen(pen)
@@ -144,8 +143,8 @@ class _RotationCanvas(QGraphicsView):
             rx = sin(angle * pi / 180.0)
             ry = cos(angle * pi / 180.0)
             rect = painter.fontMetrics().boundingRect(text)
-            dx = rx * (radius + 5) + (rect.width() // 2 * (rx-1))
-            dy = ry * (radius + 5) + (rect.height() // 4 * (ry+1))
+            dx = rx * (radius + 5) + (rect.width() // 2 * (rx - 1))
+            dy = ry * (radius + 5) + (rect.height() // 4 * (ry + 1))
             painter.drawText(QPointF(cx + dx, cy + dy), text)
 
         # Solid line for current angle
@@ -161,7 +160,10 @@ class _RotationCanvas(QGraphicsView):
         preview_pen = QPen(QColor("green"))
         preview_pen.setStyle(Qt.DashLine)
         preview_pen.setWidth(2)
-        for offset, color in [(self.step, QColor("green")), (-self.step, QColor("deepPink"))]:
+        for offset, color in [
+            (self.step, QColor("green")),
+            (-self.step, QColor("deepPink")),
+        ]:
             preview_angle = self.angle + offset
             preview_rad = preview_angle * pi / 180.0
             px2 = cx + radius * sin(preview_rad)
@@ -170,15 +172,16 @@ class _RotationCanvas(QGraphicsView):
             painter.setPen(preview_pen)
             painter.drawLine(QPointF(cx, cy), QPointF(px2, py2))
 
+
 class RotatorWidget(QWidget):
     """Widget to control a rotational stage device."""
 
     def __init__(
         self,
         *,
-        parent: QWidget = None,
-        mmcore: CMMCorePlus = None,
-    ):
+        parent: QWidget | None = None,
+        mmcore: CMMCorePlus | None = None,
+    ) -> None:
         super().__init__(parent)
         self._device: StageDevice | None = None
         self._dev_controller: QStageMoveAccumulator | None = None
@@ -279,11 +282,11 @@ class RotatorWidget(QWidget):
         self.snap_checkbox.stateChanged.connect(self._on_snap_checkbox_toggled)
         self._on_conf_loaded()
 
-    def _on_snap_checkbox_toggled(self):
+    def _on_snap_checkbox_toggled(self) -> None:
         if self._dev_controller:
             self._dev_controller.snap_on_finish = self.snap_checkbox.isChecked()
 
-    def _on_invert_toggle(self):
+    def _on_invert_toggle(self) -> None:
         inverted = self._invert_y.isChecked()
         green = cmap.Color("lime")
         pink = cmap.Color("deepPink")
@@ -293,12 +296,16 @@ class RotatorWidget(QWidget):
     def _on_conf_loaded(self) -> None:
         for dev in self._mmc.getLoadedDevicesOfType(DeviceType.Stage):
             if "KBD101" in dev:
-                obj = self._mmc.getDeviceObject(dev)
+                obj = cast("StageDevice", self._mmc.getDeviceObject(dev))
                 if obj.getProperty("StageType") == "Rotational":
                     self._device = obj
-                    self._dev_controller = QStageMoveAccumulator.for_device(self._device.name())
+                    self._dev_controller = QStageMoveAccumulator.for_device(
+                        self._device.name()
+                    )
                     self._dev_controller.snap_on_finish = self.snap_checkbox.isChecked()
-                    self._dev_controller.moveFinished.connect(self._update_position_from_core)
+                    self._dev_controller.moveFinished.connect(
+                        self._update_position_from_core
+                    )
                     # FIXME: Hardcoded for KBD101
                     self._dev_units_per_rotation = 4e6 * 360
                     self.setEnabled(True)
@@ -308,7 +315,7 @@ class RotatorWidget(QWidget):
         self._device = None
         self.setEnabled(False)
 
-    def _relative_step_changed(self):
+    def _relative_step_changed(self) -> None:
         self._canvas.setStep(self._step_size.value())
 
     def _rotate_ccw_by_step(self) -> None:
@@ -318,7 +325,8 @@ class RotatorWidget(QWidget):
         self._move_relative(-self._step_size.value())
 
     def _halt(self) -> None:
-        self._mmc.stop(self._device)
+        if self._device:
+            self._mmc.stop(self._device.name())
 
     def _home(self) -> None:
         if self._device is None:
@@ -327,25 +335,27 @@ class RotatorWidget(QWidget):
         self._mmc.home(self._device.name())
         self._home_btn.setText("Home")
 
-    def _move_relative(self, delta: float):
-        if self._device is None:
+    def _move_relative(self, delta: float) -> None:
+        if self._dev_controller is None:
             return
         dev_delta = delta / 360 * self._dev_units_per_rotation
         if self._invert_y.isChecked():
             dev_delta = -dev_delta
         self._dev_controller.move_relative(dev_delta)
 
-    def wheelEvent(self, a0):
+    def wheelEvent(self, a0: QWheelEvent) -> None:
         """Handle mouse wheel events to rotate the stage."""
         delta = a0.angleDelta().y() / 120  # Each notch is 120 units
         self._move_relative(delta)
 
-    def _move_absolute(self):
+    def _move_absolute(self) -> None:
+        if self._dev_controller is None:
+            return
         angle = self._abs_box.value()
         dev_units = angle / 360 * self._dev_units_per_rotation
         self._dev_controller.move_absolute(dev_units)
 
-    def _update_position_from_core(self):
+    def _update_position_from_core(self) -> None:
         if self._device:
             self._mmc.waitForDevice(self._device.name())
             angle = self._device.getPosition() / self._dev_units_per_rotation * 360
@@ -355,14 +365,14 @@ class RotatorWidget(QWidget):
                 self._abs_box.setValue(angle)
             self._canvas.setAngle(angle)
 
-    def _toggle_poll_timer(self, on: bool):
+    def _toggle_poll_timer(self, on: bool) -> None:
         if on and self._poll_timer_id is None:
             self._poll_timer_id = self.startTimer(500)
         elif not on and self._poll_timer_id is not None:
             self.killTimer(self._poll_timer_id)
             self._poll_timer_id = None
 
-    def timerEvent(self, event):
+    def timerEvent(self, event: QTimerEvent | None) -> None:
         """Handle timer events for polling the device position."""
         if event and event.timerId() == self._poll_timer_id:
             self._update_position_from_core()
